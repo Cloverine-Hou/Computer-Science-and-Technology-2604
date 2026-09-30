@@ -26,7 +26,7 @@ float 单精度浮点
 double 双精度浮点
 char 字符型 保存单个英文字符 
 （char不能存储中文汉字 中文要用string或char[ ] 并且一个中文汉字往往占多个字节）
-![[369845d2a20b82262fa9ff3a6df84ecc.jpg]]
+[![[369845d2a20b82262fa9ff3a6df84ecc.jpg]]](https://github.com/Cloverine-Hou/Computer-Science-and-Technology-2604/blob/main/Notes/Image/369845d2a20b82262fa9ff3a6df84ecc.jpg)
 
 变量命名的要求
 1.必须以字母或下划线开头
@@ -35,7 +35,7 @@ char 字符型 保存单个英文字符
 
 ### 进制转换
 
-![[2c2a5a6ff34d6840c2d26eeb5bb2762f.jpg]]
+[![[2c2a5a6ff34d6840c2d26eeb5bb2762f.jpg]]](https://github.com/Cloverine-Hou/Computer-Science-and-Technology-2604/blob/main/Notes/Image/2c2a5a6ff34d6840c2d26eeb5bb2762f.jpg)
 
 核心方法：
 
