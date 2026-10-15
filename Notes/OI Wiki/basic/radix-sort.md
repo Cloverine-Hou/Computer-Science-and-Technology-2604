@@ -1,0 +1,347 @@
+???+ warning "提醒"
+    本页面要介绍的不是 [**计数排序**](./counting-sort.md)．
+
+本页面将简要介绍基数排序．
+
+## 定义
+
+基数排序（Radix sort）是一种非比较型的排序算法，最早用于解决卡片排序的问题．基数排序将待排序的元素拆分为 $k$ 个关键字，逐一对各个关键字排序后完成对所有元素的排序．
+
+如果是从第 $1$ 关键字到第 $k$ 关键字顺序进行比较，则该基数排序称为 MSD（Most Significant Digit first）基数排序；
+
+如果是从第 $k$ 关键字到第 $1$ 关键字顺序进行比较，则该基数排序称为 LSD（Least Significant Digit first）基数排序．
+
+## k - 关键字元素的比较
+
+下面用 $a_i$ 表示元素 $a$ 的第 $i$ 关键字．
+
+假如元素有 $k$ 个关键字，对于两个元素 $a$ 和 $b$，默认的比较方法是：
+
+-   比较两个元素的第 $1$ 关键字 $a_1$ 和 $b_1$，如果 $a_1 < b_1$ 则 $a < b$，如果 $a_1 > b_1$ 则 $a > b$，如果 $a_1 = b_1$ 则进行下一步．
+-   比较两个元素的第 $2$ 关键字 $a_2$ 和 $b_2$，如果 $a_2 < b_2$ 则 $a < b$，如果 $a_2 > b_2$ 则 $a > b$，如果 $a_2 = b_2$ 则进行下一步．
+-   ……
+-   比较两个元素的第 $k$ 关键字 $a_k$ 和 $b_k$，如果 $a_k < b_k$ 则 $a < b$，如果 $a_k > b_k$ 则 $a > b$，如果 $a_k = b_k$ 则 $a = b$．
+
+例子：
+
+-   如果对自然数进行比较，将自然数按个位对齐后往高位补齐 $0$，则一个数字从左往右数第 $i$ 位数就可以作为第 $i$ 关键字．
+-   如果对字符串基于字典序进行比较，一个字符串从左往右数第 $i$ 个字符就可以作为第 $i$ 关键字．
+-   C++ 自带的 `std::pair` 与 `std::tuple` 的默认比较方法与上述的相同．
+
+## MSD 基数排序
+
+基于 k - 关键字元素的比较方法，可以想到：先比较所有元素的第 $1$ 关键字，就可以确定出各元素大致的大小关系；然后对 **具有相同第 $1$ 关键字的元素**，再比较它们的第 $2$ 关键字……以此类推．
+
+由于是从第 $1$ 关键字到第 $k$ 关键字顺序进行比较，由上述思想导出的排序算法称为 MSD（Most Significant Digit first）基数排序．
+
+### 算法流程
+
+将待排序的元素拆分为 $k$ 个关键字，先对第 $1$ 关键字进行稳定排序，然后对于每组 **具有相同关键字的元素** 再对第 $2$ 关键字进行稳定排序（递归执行）……最后对于每组 **具有相同关键字的元素** 再对第 $k$ 关键字进行稳定排序．
+
+一般而言，我们默认基数排序是稳定的，所以在 MSD 基数排序中，我们也仅仅考虑借助 **稳定算法**（通常使用计数排序）完成内层对关键字的排序．
+
+正确性参考上文 k - 关键字元素的比较．
+
+### 参考代码
+
+#### 对自然数排序
+
+下面是递归式 MSD 基数排序，处理 $[0,2^{32}-1]$ 内至多 `MAXN` 个整数．初始 `digit=10`；修改基数时，须同步修改 `RADIX` 和 `powRADIX`．
+
+??? example "参考代码"
+    ```cpp
+    constexpr unsigned MAXN = 1000;  // 要排序的数的个数
+    constexpr unsigned RADIX = 10;   // 基数
+    constexpr unsigned powRADIX[10] = {1,         10,        100,     1000,
+                                       10000,     100000,    1000000, 10000000,
+                                       100000000, 1000000000};  // RADIX 的幂
+
+    unsigned get_digit(unsigned value, int digit)  // 提取第 digit 位
+    {
+      return (value / powRADIX[digit]) % RADIX;
+    }
+
+    void MSD_radix_sort(unsigned* begin, unsigned* end, int digit)
+    // 表示现在 [begin,end) 内的元素（10 进制下）前若干位都相同
+    // 只有最后 digit 位（第 digit-1 到 0 位）需要进行排序
+    // 调用示例：MSD_radix_sort(a,a+n,10)
+    {
+      if (begin >= end)  // 空区间
+      {
+        return;
+      }
+      /**计数排序（个人写法仅供参考）**/
+      static unsigned cnt[RADIX + 1],
+          tmp[MAXN + 5];  // 由于不同层递归不会同时使用 cnt,tmp
+                          // 数组（每层使用完毕才会调用下一层），使用 static
+                          // 关键字可以节省空间
+      vector<unsigned> beg;
+      beg.resize(RADIX + 1);  // 对 beg 的访问可能冲突，使用局部变量
+      for (int i = 0; i <= RADIX; i++) {
+        cnt[i] = beg[i] = 0;  // 清空是一个好习惯
+      }
+      for (unsigned* it = begin; it != end; it++)  // 计数
+      {
+        int bitVal = get_digit(*it, digit - 1);
+        cnt[bitVal] += 1;
+      }
+      beg[0] = 0;  // 计算每个数码开始存储的位置（偏移量）
+      for (int i = 1; i <= RADIX; i++) {
+        beg[i] = beg[i - 1] + cnt[i - 1];
+      }
+      // 多计算 beg[RADIX] 是因为这样可以直接定义 i 对应的范围是 [beg[i],beg[i+1])
+      // 而不用担心那个 beg[i+1] 越界
+      for (int i = 0; i < RADIX; i++) {
+        cnt[i] = 0;
+      }
+      for (unsigned* it = begin; it != end; it++)  // 将计数排序结果放入 tmp
+      {
+        unsigned bitVal = get_digit(*it, digit - 1);  // 提取第 digit - 1 位
+        // 按原顺序遍历，当前是第 cnt[bitVal]+1 个在第 digit-1 位为 bitVal 的元素
+        tmp[beg[bitVal] + cnt[bitVal]] = *it;
+        cnt[bitVal]++;
+      }
+      for (unsigned* it = begin; it != end; it++)  // 将 tmp 拷贝回原数组
+      {
+        *it = tmp[it - begin];
+      }
+      /**递归排序各桶的下一位**/
+      if (digit == 1)  // 已经是最低位
+      {
+        return;
+      }
+      for (int i = 0; i < RADIX; i++)  // 递归排序下一位
+      {
+        MSD_radix_sort(begin + beg[i], begin + beg[i + 1], digit - 1);
+      }
+    }
+
+    ```
+
+#### 对字符串排序
+
+下面是递归式 MSD 基数排序，对仅含小写英文字母的 `std::string` 按字典序排序：
+
+??? example "参考代码"
+    ```cpp
+    constexpr int MAXN = 1000;
+
+    int get_digit(string* arr, int i, int dig) {
+      if (arr[i][dig] == '\0') return 0;
+      return arr[i][dig] - 'a' + 1;
+    }
+
+    void MSD_radix_sort_string_base(string* arr, int* begin, int* end,
+                                    int digit)  // 主体函数
+    // 对仅由小写字母构成的字符串排序
+    // 参数表示现在 [begin,end) 内的元素 [0,digit) 位都相同
+    // 现在从 digit 位开始进行排序
+    // 调用示例：MSD_radix_sort_string(a, a + n)
+    // 和上一份代码几乎完全相同，所以注释较少
+    // 为节省空间和时间，我们对下标数组进行排序，比较函数依旧比较字符串对应位
+    {
+      if (begin >= end) return;
+      static int tmp[MAXN + 5];
+      static int cnt[28];
+      vector<int> beg;
+      beg.resize(28);
+      // Q: 为什么开 28？
+      // A: 0=空字符，1-26=a-z，27=额外空间（防止越界）
+      for (int i = 0; i < 28; i++) cnt[i] = beg[i] = 0;
+      for (int* it = begin; it != end; it++) cnt[get_digit(arr, *it, digit)] += 1;
+      beg[0] = 0;
+      for (int i = 1; i <= 27; i++) beg[i] = beg[i - 1] + cnt[i - 1];
+      for (int i = 0; i < 28; i++) cnt[i] = 0;
+      for (int* it = begin; it != end; it++) {
+        int bitVal = get_digit(arr, *it, digit);
+        tmp[beg[bitVal] + cnt[bitVal]] = *it;
+        cnt[bitVal]++;
+      }
+      for (int* it = begin; it != end; it++) *it = tmp[it - begin];
+      // 如果已经是空字符了就没必要递归了，所以递归 1~26
+      for (int i = 1; i <= 26; i++)
+        MSD_radix_sort_string_base(arr, begin + beg[i], begin + beg[i + 1],
+                                   digit + 1);
+    }
+
+    int label[MAXN + 5];
+
+    void MSD_radix_sort_string(string* begin, string* end)  // 调用接口
+    {
+      static string tmp[MAXN + 5];
+      int n = end - begin;
+      for (int i = 0; i < n; i++) {
+        label[i] = i;
+        tmp[i] = *(begin + i);
+      }
+      MSD_radix_sort_string_base(tmp, label, label + n, 0);
+      for (int i = 0; i < n; i++) {
+        *(begin + i) = tmp[label[i]];
+      }
+    }
+
+    ```
+
+由于两个字符串的比较很容易冲上 $O(n)$ 的线性复杂度，因此在字符串排序这件事情上，MSD 基数排序比大多数基于比较的排序算法在时间复杂度和实际用时上都更加优秀．
+
+### 与桶排序的关系
+
+前置知识：[桶排序](./bucket-sort.md)
+
+桶排序需要其它的排序算法来完成对每个桶内部元素的排序．但实际上，完全可以对每个桶继续执行桶排序，直至某一步桶的元素数量 $\le 1$．
+
+因此 MSD 基数排序的另一种理解方式是：使用桶排序实现的桶排序．
+
+也因此，可以提出 MSD 基数排序在时间常数上的一种优化方法：假如到某一步桶的元素数量 $\le B$（$B$ 是自己选的常数），则直接执行插入排序然后返回，降低递归次数．
+
+## LSD 基数排序
+
+MSD 基数排序从第 $1$ 关键字到第 $k$ 关键字顺序进行比较，为此需要借助递归或迭代来实现，时间常数还是较大，而且在比较自然数上还是略显不便．
+
+而将递归的操作反过来：从第 $k$ 关键字到第 $1$ 关键字顺序进行比较，就可以得到 LSD（Least Significant Digit first）基数排序，不使用递归就可以完成的排序算法．
+
+### 算法流程
+
+将待排序的元素拆分为 $k$ 个关键字，然后先对 **所有元素** 的第 $k$ 关键字进行稳定排序，再对 **所有元素** 的第 $k-1$ 关键字进行稳定排序，再对 **所有元素** 的第 $k-2$ 关键字进行稳定排序……最后对 **所有元素** 的第 $1$ 关键字进行稳定排序，这样就完成了对整个待排序序列的稳定排序．
+
+![一个 LSD 基数排序全流程的例子](images/radix-sort-1.svg)
+
+LSD 基数排序也需要借助一种 **稳定算法** 完成内层对关键字的排序．同样的，通常使用计数排序来完成．
+
+LSD 基数排序的正确性可以参考 [《算法导论（第三版）》第 8.3-3 题的解法](https://walkccc.github.io/CLRS/Chap08/8.3/#83-3) 或参考下面的解释：
+
+### 正确性
+
+回顾一下 k - 关键字元素的比较方法，
+
+-   假如想通过 $a_1$ 和 $b_1$ 就比较出两个元素 $a$ 和 $b$ 的大小，则需要提前知道通过比较 $a_2$ 和 $b_2$ 得到的结论，以便于应对 $a_1 = b_1$ 的情况．
+-   而想通过 $a_2$ 和 $b_2$ 就比较出两个元素 $a$ 和 $b$ 的大小，则需要提前知道通过比较 $a_3$ 和 $b_3$ 得到的结论，以便于应对 $a_2 = b_2$ 的情况．
+-   ……
+-   而想通过 $a_{k-1}$ 和 $b_{k-1}$ 就比较出两个元素 $a$ 和 $b$ 的大小，则需要提前知道通过比较 $a_k$ 和 $b_k$ 得到的结论，以便于应对 $a_{k-1} = b_{k-1}$ 的情况．
+-   $a_k$ 和 $b_k$ 可以直接比较．
+
+现在，将顺序反过来：
+
+-   $a_k$ 和 $b_k$ 可以直接比较．
+-   而知道通过比较 $a_k$ 和 $b_k$ 得到的结论后，就可以得到比较 $a_{k-1}$ 和 $b_{k-1}$ 的结论．
+-   ……
+-   而知道通过比较 $a_2$ 和 $b_2$ 得到的结论后，就可以得到比较 $a_1$ 和 $b_1$ 的结论．
+-   而知道通过比较 $a_1$ 和 $b_1$ 得到的结论后，就最终得到了比较 $a$ 和 $b$ 的结论．
+
+在这个过程中，对每个关键字边比较边重排元素的顺序，就得到了 LSD 基数排序．
+
+### 伪代码
+
+$$
+\begin{array}{ll}
+1 & \textbf{Input. } \text{An array } A \text{ consisting of }n\text{ elements, where each element has }k\text{ keys.}\\
+2 & \textbf{Output. } \text{Array }A\text{ will be sorted in nondecreasing order stably.} \\
+3 & \textbf{Method. }  \\
+4 & \textbf{for }i\gets k\textbf{ down to }1\\
+5 & \qquad\text{sort }A\text{ into nondecreasing order by the }i\text{-th key stably}
+\end{array}
+$$
+
+### 参考代码
+
+下面是使用 LSD 基数排序实现的对 k - 关键字元素的排序．
+
+??? example "参考代码"
+    ```cpp
+    constexpr int N = 100010;
+    constexpr int W = 100010;
+    constexpr int K = 100;
+
+    int n, w, k, cnt[W];
+
+    struct Element {
+      int key[K];
+    } a[N], b[N];
+
+    void counting_sort(int p) {
+      memset(cnt, 0, sizeof(cnt));
+      for (int i = 1; i <= n; ++i) ++cnt[a[i].key[p]];
+      for (int i = 1; i <= w; ++i) cnt[i] += cnt[i - 1];
+      // 为保证排序的稳定性，此处循环i应从n到1
+      // 即当两元素关键字的值相同时，原先排在后面的元素在排序后仍应排在后面
+      for (int i = n; i >= 1; --i) b[cnt[a[i].key[p]]--] = a[i];
+      memcpy(a, b, sizeof(a));
+    }
+
+    void radix_sort() {
+      for (int i = k; i >= 1; --i) {
+        // 借助计数排序完成对关键字的排序
+        counting_sort(i);
+      }
+    }
+
+    ```
+
+实际上并非必须从后往前枚举才是稳定排序，只需对 `cnt` 数组进行等价于 `std::exclusive_scan` 的操作即可．
+
+???+ note "例题 [洛谷 P1177【模板】排序](https://www.luogu.com.cn/problem/P1177)"
+    给出 $n$ 个正整数，从小到大输出．
+    
+    ```cpp
+    #include <algorithm>
+    #include <iostream>
+    #include <utility>
+
+    void radix_sort(int n, int a[]) {
+      int *b = new int[n];  // 临时空间
+      int *cnt = new int[1 << 8];
+      int mask = (1 << 8) - 1;
+      int *x = a, *y = b;
+      for (int i = 0; i < 32; i += 8) {
+        for (int j = 0; j != (1 << 8); ++j) cnt[j] = 0;
+        for (int j = 0; j != n; ++j) ++cnt[x[j] >> i & mask];
+        for (int sum = 0, j = 0; j != (1 << 8); ++j) {
+          // 等价于 std::exclusive_scan(cnt, cnt + (1 << 8), cnt, 0);
+          sum += cnt[j], cnt[j] = sum - cnt[j];
+        }
+        for (int j = 0; j != n; ++j) y[cnt[x[j] >> i & mask]++] = x[j];
+        std::swap(x, y);
+      }
+      delete[] cnt;
+      delete[] b;
+    }
+
+    int main() {
+      std::ios::sync_with_stdio(false);
+      std::cin.tie(nullptr);
+      int n;
+      std::cin >> n;
+      int *a = new int[n];
+      for (int i = 0; i < n; ++i) std::cin >> a[i];
+      radix_sort(n, a);
+      for (int i = 0; i < n; ++i) std::cout << a[i] << " \n"[i == n - 1];
+      delete[] a;
+      return 0;
+    }
+    ```
+
+## 性质
+
+### 稳定性
+
+如果对内层关键字的排序是稳定的，则 MSD 基数排序和 LSD 基数排序都是稳定的排序算法．
+
+### 时间复杂度
+
+通常而言，基数排序比基于比较的排序算法（比如快速排序）要快．但由于需要额外的内存空间，因此当内存空间稀缺时，原地置换算法（比如快速排序）或许是个更好的选择．[^ref1]
+
+以下时间界假设提取单个关键字和移动一个元素（或其下标）均花费 $O(1)$ 时间．一般来说，如果每个关键字的值域都不大，就可以使用 [计数排序](./counting-sort.md) 作为内层排序，LSD 和 MSD 的时间复杂度分别为
+
+$$
+O\left(kn+\sum_{i=1}^k w_i\right),\qquad O\left(kn+\sum_{i=1}^k b_iw_i\right),
+$$
+
+其中 $b_i$ 为第 $i$ 层实际执行计数排序的桶数，$w_i$ 为第 $i$ 关键字的值域大小．如果关键字值域很大，就可以直接使用基于比较的 $O(nk\log n)$ 排序而无需使用基数排序了．
+
+### 空间复杂度
+
+下面讨论除输入以外的辅助空间，假设每个元素或其下标占用 $O(1)$ 空间．使用计数排序时，LSD 可以复用长度为 $n$ 的临时数组和计数数组，辅助空间为 $O(n+\max_i w_i)$．递归式 MSD 若复用临时数组，但在每层递归中保留桶的边界，则辅助空间为 $O(n+\sum_{i=1}^k w_i)$．当各位的值域大小固定时，两者分别简化为 $O(n)$ 和 $O(n+k)$．这里 $k$ 是关键字个数．
+
+## 参考资料与注释
+
+[^ref1]: Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, and Clifford Stein.*Introduction to Algorithms*(3rd ed.). MIT Press and McGraw-Hill, 2009. ISBN 978-0-262-03384-8. "8.3 Radix sort", pp. 199.
