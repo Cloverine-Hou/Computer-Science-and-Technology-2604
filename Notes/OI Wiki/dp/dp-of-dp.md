@@ -1,0 +1,428 @@
+author: Hope666666
+
+## 引入
+
+本文将介绍 DP 套 DP 的思想，并通过两道例题展示它如何应用到具体问题中．
+
+## 思想
+
+所谓「DP 套 DP」，实际上指的是在动态规划的过程中，把一个子问题的求解过程（通常是一个 DP）抽象成一个自动机（DFA），然后在这个自动机的基础上再设计一层新的 DP 的方法．
+
+这种技巧主要应用于一类 **序列计数**、**概率** 或 **期望** 问题．一个典型的问题具有如下结构：
+
+-   给定字符集 $\Sigma$ 和它上面一个长度为 $n$ 的「合法序列」的集合 $A\subseteq\Sigma^n$．根据字符集不同，序列可以是二进制串、数字串、状态序列等．
+-   对于每一个具体的序列 $s\in\Sigma^n$，可以通过动态规划来判断它是否合法（即 $s\in A$），计算它的权值或求出相关值．
+-   最终，我们希望统计集合 $A$ 中所有序列的数目、总权值、期望值等．
+
+这时，枚举所有序列是不可行的．于是我们考虑将「判断一个序列是否合法」的过程（即内层 DP）抽象为一个 [确定有限状态自动机](../misc/fsm.md#确定性有限状态自动机)（DFA）．一般地，对于固定的序列 $s\in\Sigma^n$，内层 DP 的状态函数可以表示为 $g(i,x;s)$，即已经处理完序列 $s$ 的长度为 $i$ 的前缀，且其他状态分量为 $x$ 时某个量的取值．相应地，内层 DP 的状态转移方程为
+
+$$
+g(i,\cdot;s) = G(g(i-1,\cdot;s),s_i).
+$$
+
+也就是说，函数 $g(i,\cdot;s)$ 由之前的函数 $g(i-1,\cdot;s)$ 和当前的字符 $s_i$ 唯一确定．如果将函数 $g(i,\cdot;s)$ 看作是自动机的一个状态，那么，内层 DP 的状态转移方程就给出了自动机的一个转移．因此，内层 DP 对应的自动机 $(Q,\Sigma,\delta,q_0,F)$ 结构如下：
+
+-   状态集合 $Q$ 就是所有可能的 $s\in\Sigma^n$ 和 $i=0,1,\cdots,n$ 对应的函数 $g(i,\cdot;s)$ 的集合；
+-   转移函数 $\delta:Q\times\Sigma\to Q$ 就是内层 DP 的状态转移方程中的 $G$；
+-   起始状态 $q_0$ 通常是显然的，即内层 DP 的初始状态；
+-   接受状态集合 $F$ 就对应着所有的合法序列 $s\in A$．
+
+函数 $g(i,\cdot;s)$ 本身可能相当复杂，因此，在处理具体问题时，通常需要进行 [状态压缩](./state.md) 或结合 DFA 最小化的技巧来压缩状态空间．这也是 DP 套 DP 相较于暴力 DP 能够显著降低时空复杂度的主要原因．
+
+将内层 DP 抽象为 DFA 后，就可以在这个 DFA 上设计一个新的 DP 用于求解原问题，即外层 DP．为方便表述，以简单的计数问题为例．外层 DP 的状态函数定义为 $f(i,q)$，即处理到长度为 $i$ 的前缀时，到达 DFA 中状态 $q\in Q$ 的前缀的数目．它的状态转移方程为
+
+$$
+f(i,q) = \sum_{c\in\Sigma}\sum_{q'\in Q:\delta(q',c)=q} f(i-1,q').
+$$
+
+初始值当然是 $f(0,q_0)=1$，而最终要求的答案通常可以根据 $\{f(n,q):q\in F\}$ 简单计算得到．外层 DP 实际上是 [DAG 上 DP](./dag.md) 的特殊情形．
+
+## 例题
+
+接下来的两个例题会详细说明 DP 套 DP 的一般做法．
+
+### 例一
+
+???+ example "[Hero meet devil](https://www.luogu.com.cn/problem/P10614)"
+    给定一个字符集为 `ACGT` 的字符串 $S$，且 $|S|\le 15$．对于每个 $0\leq i \leq |S|$，求有多少个长度为 $m$，字符集 `ACGT` 的字符串 $T$，满足它与 $S$ 的最长公共子序列长度为 $i$．
+
+??? note "题解"
+    我们首先会想到一个 DP：设 $f_{i,j}$ 表示长度为 $i$ 的 $T$ 中，和 $S$ 的最长公共子序列的长度为 $j$ 的方案数．但是这样无法转移，我们发现主要的问题是，我们不知道这个最长公共子序列对应的是哪些字符．
+    
+    考虑朴素求最长公共子序列的过程．设 $g_{i,j}$ 表示 $T$ 的前 $i$ 位和 $S$ 的前 $j$ 位，它们的最长公共子序列的长度，就有
+    
+    $$
+    g_{i,j} = \max\{g_{i-1,j},g_{i,j-1},g_{i-1,j-1}+[T_i=S_j]\}.
+    $$
+    
+    我们发现，对于一个 $i$，只需要记录 $g_i$ 这个一维数组每一位的值，就能准确维护当前 $S$ 与 $T$ 前 $i$ 位最长公共子序列的状态．因为 $S$ 长度只有 $15$，我们发现这个思想是可行的．
+    
+    于是重新设状态 $f_{i,x}$ 表示对于长度为 $i$ 的 $T$，与 $S$ 的 DP 数组（就是 $g_i$）状态为 $x$ 的方案数．这个 DP 看起来状态数很多，然而我们发现 $g_{i,j}-g_{i,j-1}\in\{0,1\}$，就可以维护 $g_i$ 的差分数组，状态数是 $2^{|S|}$ 的．
+    
+    现在思考怎么转移．容易发现，如果我们知道了 $g_i$ 这个数组，也知道了 $T_{i+1}$，就能通过朴素 LCS 转移（即前文的 DP 方程）求出 $g_{i+1}$．于是朴素的 LCS 就成为了帮助 $f$ 转移的内层 DP．
+    
+    因此，我们枚举 $T_{i+1}$，计算出 $x$ 转移后的状态 $x'$，再将 $f_{i+1,x'}$ 加上 $f_{i,x}$ 就可以完成外层 DP 的状态转移．最后，我们记录 $\textit{ans}_i$ 为 LCS 长度为 $i$ 的答案，枚举每个状态 $x$，$\textit{ans}_{\operatorname{popcount}(x)}$ 加上 $f_{m,x}$ 即可．
+
+??? note "参考代码"
+    ```cpp
+    #include <cstring>
+    #include <iostream>
+    #include <string>
+    using namespace std;
+
+    const int MOD = 1e9 + 7;
+    const int MAXN = 100;
+
+    int T, a[MAXN + 1], h[MAXN + 1];
+    int g[MAXN + 1], m, n;
+    int nxt[1 << 16]
+           [4];  // 状态转移表：nxt[mask][ch] 表示 mask 状态下追加 ch 后的新状态
+    int f[1001]
+         [1 << 16];  // DP 数组：f[i][mask] 表示长度为 i，处于状态 mask 的方案数
+    int ans[MAXN +
+            1];  // 最终答案：ans[i] 表示长度为 m 时，包含 i 个匹配位置的方案数
+
+    void add(int &x, int y) { x = (x + y) % MOD; }
+
+    int calc(int mask, int x) {  // 给定当前 mask 状态和当前字符
+                                 // x（0~3），返回新状态
+      int res = 0;
+      for (int i = 0; i < n; ++i) g[i + 1] = g[i] + ((mask >> i) & 1);
+
+      for (int i = 1; i <= n; ++i) {
+        if (a[i] == x)
+          h[i] = g[i - 1] + 1;
+        else
+          h[i] = max(h[i - 1], g[i]);
+      }
+
+      for (int i = 1; i <= n; ++i)
+        if (h[i] > h[i - 1]) res |= (1 << (i - 1));
+
+      return res;
+    }
+
+    int popcount(int x) {  // 计算 mask 中有多少个 1（即匹配了多少位置）
+      int res = 0;
+      while (x) {
+        res += x & 1;
+        x >>= 1;
+      }
+      return res;
+    }
+
+    int main() {
+      ios::sync_with_stdio(false);
+      cin.tie(nullptr);
+
+      cin >> T;
+      while (T--) {
+        string S;
+        cin >> S >> m;
+        n = S.length();
+
+        memset(f, 0, sizeof(f));
+        memset(ans, 0, sizeof(ans));
+        memset(a, 0, sizeof(a));
+
+        for (int i = 0; i < n; ++i) {
+          if (S[i] == 'A') a[i + 1] = 0;
+          if (S[i] == 'C') a[i + 1] = 1;
+          if (S[i] == 'G') a[i + 1] = 2;
+          if (S[i] == 'T') a[i + 1] = 3;
+        }
+
+        int lim = (1 << n);
+        for (int i = 0; i < lim; ++i)
+          for (int j = 0; j < 4; ++j) nxt[i][j] = calc(i, j);
+
+        f[0][0] = 1;
+        for (int i = 0; i < m; ++i)
+          for (int j = 0; j < lim; ++j)
+            if (f[i][j])
+              for (int k = 0; k < 4; ++k) add(f[i + 1][nxt[j][k]], f[i][j]);
+
+        for (int i = 0; i < lim; ++i) add(ans[popcount(i)], f[m][i]);
+
+        for (int i = 0; i <= n; ++i) cout << ans[i] << '\n';
+      }
+
+      return 0;
+    }
+    ```
+
+### 例二
+
+???+ example "[\[ZJOI2019\] 麻将](https://loj.ac/p/3042)"
+    假设麻将牌有 $n$ 种大小的牌，每种大小有 $4$ 张牌．定义面子为三张相邻大小的麻将牌 $i,i+1,i+2$（顺子）或三张相同大小的麻将牌 $i,i,i$（刻子），对子为两张相同大小的麻将牌 $i,i$．定义一个麻将牌的序列是胡的，当且仅当它（看作多重集合）可以拆成四个面子和一个对子，或者七个不同的对子．给定初始的 $13$ 张麻将牌，剩余的 $4n-13$ 张牌等概率随机打乱后依次摸取，问期望再摸多少张牌可以满足存在一个胡牌的子序列的条件，答案对 $998244353$ 取模．
+
+??? note "题解"
+    首先，对于一副牌，我们只需考虑每种牌的数量，而不必关心它们的顺序．因此，对于任何一副牌的任意前缀，我们都可以将它转化为一个长度为 $n$，每个位置上为 $0\sim 4$ 的序列．初始时，第 $i$ 种牌的数量为 $a_i$，就相当于限制了序列中第 $i$ 个数字 $x_i$ 的取值为 $[a_i,4]$ 内的整数．注意，转化后的序列没有考虑摸牌的顺序，但是题目中的麻将牌的序列是考虑顺序的．
+    
+    设 $X$ 表示可以胡牌的最小摸牌次数．直接计算期望 $\mathbf E[X]$ 较为困难，可以考虑进行如下转化．设 $h_i$ 表示从剩余的牌中选出 $i$ 张（同种牌的不同张视为不同）后 **没有胡** 的方案数．因为它对应的麻将牌序列中，这 $i$ 张牌必然排在剩下的 $(4n-13-i)$ 张牌前方，但是这 $i$ 张牌和剩下的 $(4n-13-i)$ 张牌的顺序是任意的，所以，只摸前 $i$ 张牌无法胡牌的麻将牌序列的数目就是
+    
+    $$
+    h_i\cdot i!(4n-13-i)!.
+    $$
+    
+    因为麻将牌序列的总数为 $(4n-13)!$，所以，只摸前 $i$ 张牌无法胡牌的概率为
+    
+    $$
+    \mathbf P[X>i] = \dfrac{h_i\cdot i!(4n-13-i)!}{(4n-13)!}.
+    $$
+    
+    利用尾求和公式，就可以得到所求期望
+    
+    $$
+    \mathbf E[X] = \sum_{i=0}^\infty\mathbf P[X>i] = 1 + \sum_{i=1}^{4n-13}\dfrac{h_i\cdot i!(4n-13-i)!}{(4n-13)!}.
+    $$
+    
+    至此，问题转化为如何计算 $h_i$．我们采用 DP 套 DP 的方法来解决这一问题．
+    
+    首先，考虑内层 DP，也就是要用动态规划判断一个（转化后的）序列是否对应一副能胡的牌．七对子的情形较为容易，重点讨论第一种胡牌的形式．为此，设 $g_{0/1,i,j,k}$ 表示处理完前 $i$ 种牌，还剩 $j$ 组 $(i-1,i)$ 以及 $k$ 张 $i$，且不存在/存在对子（即 $0/1$）时最多的面子数．如果对于一个序列进行 DP，最后得到的 $g_{1,n}$ 中包括一个大于等于 $4$ 的数字，那么这个序列就是能胡的．
+    
+    这个 DP 的状态转移较为复杂．我们分两步讨论．第一步，考虑 $g_{0/1,i}$ 的转移．这相当于说，如果要向现在的牌型中，添加 $x_i$ 张大小为 $i$ 的牌，但是不组成新的对子时，面子数如何转移．显然，如果希望在添加 $x_i$ 张大小为 $i$ 的牌后，要得到 $\ell$ 个顺子，$j$ 个 $(i-1,i)$ 和 $k$ 个单独的 $i$，那么，就应该从 $(g_{0/1,i-1})_{\ell,j}$ 中转移过来（这里的选择最大程度避免了浪费），并将剩余的牌 $(x_i-\ell-j-k)$ 用于组成尽可能多的刻子．穷举所有的可能性，就得到如下转移方程：
+    
+    $$
+    \tilde G(g_{0/1,i-1}, x_i)_{j,k} = \max\left\{(g_{0/1,i-1})_{\ell,j} + \ell + \left\lfloor\dfrac{x_i-\ell-j-k}{3}\right\rfloor:\ell+j+k\le x_i\right\}.
+    $$
+    
+    第二步，再考虑需要组成对子的情形．加入 $x_i$ 张大小为 $i$ 的牌时，有如下三种转移：
+    
+    -   将 $g_{0,i-1}$ 加 $x_i$ 张牌转移到 $g_{0,i}$；
+    -   将 $g_{1,i-1}$ 加 $x_i$ 张牌转移到 $g_{1,i}$；
+    -   若 $x_i\ge 2$，将 $g_{0,i-1}$ 加 $x_i-2$ 张牌转移到 $g_{1,i}$．
+    
+    由此，就得到了从 $g_{i-1}$ 添加 $x_i$ 张牌得到 $g_i$ 的全部转移．
+    
+    解决了内层 DP 的状态转移，就可以构建 **胡牌自动机**．自动机的转移就是上述内层 DP 的转移，还需要考虑如何表示自动机的每个状态．每个状态都对应 $g_i$ 的一种可能的取值．它有三个维度 $(0/1,j,k)$．因为 $j$ 和 $k$ 对应的维度中保留的 $(i-1,i)$ 和 $i$ 都是用于将来组成顺子的，而三个相同顺子总是可以重组为三个刻子，所以，只需要考虑组成不超过 $2$ 个相同顺子的需求就行，每种牌型也就只要保留不超过 $2$ 个，即 $j,k\in\{0,1,2\}$．因此，$g_i$ 可以表示为一个 $2\times 3\times 3$ 的数组．另外，为了维护七对子的胡牌牌型，还需要为每个状态添加一个计数器，用于表示当前最多可组成的对子数目．
+    
+    数组 $g_i$ 中每个元素的取值范围可能是 $\{-\infty\}\cup\mathbf N$，但是，因为面子数目大于等于 $4$ 都是胡牌，所以，可以限制每个元素取值不超过 $4$．由于胡牌序列再添加任何牌都是胡牌序列，所以，可以利用 DFA 最小化的思想，将全体胡牌状态压缩为一个状态．因此，对于非胡牌状态，$g_1$ 中每个位置的取值只要考虑 $\{-\infty\}\cup\{0,1,2,3\}$，而 $g_0$ 中每个位置的取值为 $\{-\infty\}\cup\{0,1,2,3,4\}$．实现时，$-\infty$ 用 $-1$ 表示．
+    
+    尽管如此，所有可能的状态依然相当地多，共有 $1+7\times 5^9\times 6^9$ 种．穷举它们并不现实．实际上，绝大多数这些可能性都不会真的出现在一个胡牌自动机中．为了避免考虑实际不存在的状态，可以利用 BFS 的思想，从初始状态开始，一步一步扩展状态，直到胡牌状态处停止．这样得到的自动机中有 $N = 2092$ 个状态．
+    
+    最后，考虑如何在胡牌自动机上 DP（即外层 DP）．设 $f_{i,j,k}$ 表示处理完前 $i$ 种牌，共摸了 $j$ 张牌，走到了胡牌自动机上的 $k$ 号状态的方案数．转移时，枚举摸牌数 $0\leq t\leq 4-a_i$，其中 $a_i$ 为初始 $13$ 张牌中大小为 $i$ 的牌的张数，将之前的方案数乘以 $4-a_i$ 张牌中选 $t$ 张牌的方案数 $\dbinom{4-a_i}{t}$，再累加到一起．形式化地，有：
+    
+    $$
+    f_{i,j+t,k'} \gets f_{i,j+t,k'} + \dbinom{4-a_i}{t}f_{i-1,j,k}.
+    $$
+    
+    其中，$k'=\delta(k,a_i+t)$，表示向自动机的状态 $k$ 中加入 $a_i+t$ 张牌后的状态．外层 DP 结束后，就可以计算出摸了 $i$ 张牌仍然没有胡牌的方案数，即
+    
+    $$
+    h_i=\sum_{k\notin F} f_{n,i,k},
+    $$
+    
+    其中，$F$ 为胡牌状态的集合．代入前文所述表达式，就可以得到所要求的期望．
+
+??? note "参考代码"
+    ```cpp
+    #include <algorithm>
+    #include <cstdio>
+    #include <iostream>
+    #include <map>
+    #include <unordered_map>
+    using namespace std;
+
+    const int N = 100, M = 400, mod = 998244353;
+
+    int n, m, a[N + 5], fact[M + 5], inv[M + 5];
+
+    inline int C(int x, int y) {
+      return 1LL * fact[x] * inv[y] % mod * inv[x - y] % mod;
+    }
+
+    class HuAutomation {  // 胡牌自动机
+     private:
+      class Mat {
+       private:
+        int f[3][3];
+
+       public:
+        Mat() {
+          for (int i = 0; i <= 2; i++)
+            for (int j = 0; j <= 2; j++) f[i][j] = -1;
+        }
+
+        int* operator[](const int& x) { return f[x]; }
+
+        inline bool operator==(Mat x) const {
+          for (int i = 0; i <= 2; i++)
+            for (int j = 0; j <= 2; j++)
+              if (f[i][j] != x[i][j]) return 0;
+          return 1;
+        }
+
+        inline bool operator<(Mat x) const {
+          for (int i = 0; i <= 2; i++)
+            for (int j = 0; j <= 2; j++)
+              if (f[i][j] != x[i][j]) return f[i][j] < x[i][j];
+          return 0;
+        }
+
+        inline bool Check() {
+          for (int i = 0; i <= 2; i++)
+            for (int j = 0; j <= 2; j++)
+              if (f[i][j] > 3) return 1;
+          return 0;
+        }
+
+        inline void Upd(Mat x, int t) {
+          // 将已有矩阵 x 的值更新到当前矩阵中，模拟加入 t 张当前牌后的状态
+          for (int i = 0; i <= 2; i++)
+            for (int j = 0; j <= 2; j++)
+              if (x[i][j] != -1)
+                for (int k = 0; k < 3 && i + j + k <= t; k++)
+                  f[j][k] = max(f[j][k], min(i + x[i][j] + (t - i - j - k) / 3, 4));
+          // i,j,k,(t-i-j-k)
+          // 表示分别枚举用于拼面子、用于保留(i-1,i)、用于保留i和直接拼面子的牌数
+          //  更新时限制最多 4 个面子
+        }
+      };
+
+      struct node {
+        int t, state[5];
+        Mat F[2];
+
+        node() {
+          for (int i = 0; i <= 4; i++) state[i] = 0;
+          t = 0;
+          for (int i = 0; i <= 1; i++) F[i] = Mat();
+        }
+
+        inline bool Check() { return t == -1 || t >= 7 || F[1].Check(); }
+
+        node Hu() {
+          node x;
+          x.t = -1;
+          return x;
+        }
+
+        bool operator<(const node& x) const {
+          if (t == x.t) {
+            if (F[0] == x.F[0]) return F[1] < x.F[1];
+            return F[0] < x.F[0];
+          }
+          return t < x.t;
+        }
+
+        node operator+(int x) {      // 加上 x 张新牌
+          if (Check()) return Hu();  // 胡了直接返回
+          node res;
+          res.F[0].Upd(F[0], x), res.F[1].Upd(F[1], x);  // 更新
+          res.t = t;
+          if (x > 1) res.F[1].Upd(F[0], x - 2), ++res.t;
+          if (res.Check()) res = Hu();  // 判断是否胡了
+          return res;
+        }
+      } A[2100];
+
+      map<node, int> mp;
+
+      inline int Get(node x) {
+        if (mp.count(x)) return mp[x];
+        mp[x] = ++tot;
+        A[tot] = x;
+        return tot;
+      }
+
+      inline void Expand(int x) {
+        // 构建状态转移图：
+        // 对于当前状态 A[x]，尝试加入 0~4 张同种牌，得到 5 个新状态
+        for (int i = 0; i <= 4; i++) A[x].state[i] = Get(A[x] + i);
+      }
+
+      inline node Hu() {
+        node x;
+        x.t = -1;
+        return x;
+      }
+
+      inline node Emp() {
+        node x;
+        x.F[0][0][0] = 0;
+        return x;
+      }
+
+     public:
+      int tot, f[N + 5][M + 5][2100];
+
+      inline void Build() {
+        A[1] = Emp(), A[2] = Hu();  // 状态1是初始合法状态，2 是胡牌状态
+        mp[A[1]] = 1, mp[A[2]] = 2;
+        tot = 2;
+        Expand(1);
+        for (int i = 3; i <= tot; i++)
+          Expand(i);  // 枚举所有可达状态，构建状态图（因为 2
+                      // 是胡牌状态所以不需要拓展）
+      }
+
+      void DP() {
+        f[0][0][1] = 1;
+        for (int i = 1; i <= n; i++)
+          for (int j = m; j >= 0; j--)
+            for (int k = 1; k <= tot; k++)
+              if (f[i - 1][j][k])
+                for (int t = 0; t <= 4 - a[i]; t++)
+                  // 枚举这种牌能加多少个（不能超过4，总共已有a[i]个），做组合转移
+                  (f[i][j + t][A[k].state[a[i] + t]] +=
+                   1LL * f[i - 1][j][k] * C(4 - a[i], t) % mod) %= mod;
+      }
+    } Hfu;
+
+    inline long long qpow(long long x, int y) {
+      long long res = 1;
+      while (y) {
+        if (y & 1) res = res * x % mod;
+        x = x * x % mod;
+        y >>= 1;
+      }
+      return res;
+    }
+
+    void init(int n) {
+      fact[0] = 1;
+      for (int i = 1; i <= n; i++) fact[i] = 1LL * fact[i - 1] * i % mod;
+      inv[n] = qpow(fact[n], mod - 2);
+      for (int i = n - 1; i >= 0; i--) inv[i] = 1LL * inv[i + 1] * (i + 1) % mod;
+    }
+
+    int main() {
+      ios::sync_with_stdio(false);
+      cin.tie(nullptr);
+
+      int ans = 0;
+      Hfu.Build();  // 状态图构建
+      cin >> n;
+      for (int i = 1; i <= 13; i++) {
+        int x, y;
+        cin >> x;
+        cin >> y;
+        ++a[x];
+      }
+      m = (n << 2) - 13;
+      init(m);
+      Hfu.DP();
+
+      for (int i = 1; i <= m; i++) {
+        (ans += 1LL * Hfu.f[n][i][1] * fact[i] % mod * fact[m - i] % mod) %= mod;
+        for (int j = 3; j <= Hfu.tot; j++)  // 因为 2 节点是胡牌节点所以不统计
+          (ans += 1LL * Hfu.f[n][i][j] * fact[i] % mod * fact[m - i] % mod) %= mod;
+        // f[i][j][k]：表示处理完前 i 种牌，共摸了 j 张牌，走到了胡牌自动机上的 k
+        // 号节点的方案数。这里对 f[n][i][j] 求和，
+        // 每个方案乘以 i!(用于排列这 i 张) × (m - i)!
+        // (剩下的牌排列)，求和后取模
+      }
+
+      cout << (1LL * ans * inv[m] + 1) % mod;
+      // 最终答案乘上 inv[m] 是除以 m!，即去掉总排列数，最后 +1 是 dp 的定义是摸完 i
+      // 张还没有胡
+      return 0;
+    }
+    ```
+
+## 习题
+
+-   [CF979E Kuro and Topological Parity](https://codeforces.com/problemset/problem/979/E)
+-   [\[TJOI2018\] 游园会](https://loj.ac/p/2575)
+-   [\[NOI2022\] 移除石子](https://loj.ac/p/3848)
